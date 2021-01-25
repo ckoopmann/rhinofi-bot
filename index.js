@@ -1,6 +1,6 @@
 const DVF = require('./dvf')
 const _ = require('lodash')
-const { splitSymbol, prepareAmount } = require('dvf-utils')
+const { splitSymbol, prepareAmount, preparePrice } = require('dvf-utils')
 const { AlchemyProvider } = require('@ethersproject/providers')
 const { PAIR, PRIVATE_KEY, ALCHEMY_URL } = require('./config')
 const { ChainId, Token, WETH, Fetcher, Route, Trade, TokenAmount, TradeType } = require('@uniswap/sdk')
@@ -51,6 +51,7 @@ let balanceB
 async function cancelOpenOrders () {
   const orders = await dvf.getOrders()
   orders.forEach(o => {
+    if (o.symbol != PAIR) return
     dvf.cancelOrder(o._id)
   })
 }
@@ -75,12 +76,12 @@ async function syncBalances () {
 async function replaceOrders () {
   cancelOpenOrders()
   syncBalances()
-  placeOrder(-balanceA / 5)
-  placeOrder(balanceB / (lastMidPrice * 5))
+  placeOrder(-balanceA / 20)
+  placeOrder(balanceB / (lastMidPrice * 20))
 }
 
 async function placeOrder (amount) {
-  amount = prepareAmount(amount, 3)
+  amount = prepareAmount(amount, 1)
   if (amount === '0') return
 
   const [quote, base] = splitSymbol(PAIR)
@@ -88,15 +89,18 @@ async function placeOrder (amount) {
   if (amount > 0) {
     const buyAmountWei = dvf.token.toBaseUnitAmount(quote, 1)
     buySide = new Trade(lastBidRoute, new TokenAmount(tokenQuote, buyAmountWei), TradeType.EXACT_INPUT)
-    price = buySide.executionPrice.toSignificant(6)
+    price = preparePrice(buySide.executionPrice.toSignificant(4))
     console.log('Place buy at:', price)
   } else {
     const sellAmountWei = dvf.token.toBaseUnitAmount(base, 1)
     sellSide = new Trade(lastAskRoute, new TokenAmount(tokenBase, sellAmountWei), TradeType.EXACT_INPUT)
-    price = sellSide.executionPrice.invert().toSignificant(6)
+    price = sellSide.executionPrice.invert().toSignificant(4)
+    price = preparePrice(price * 1)
     console.log('Place sell at:', price)
   }
   if (!price) return
+
+console.log(amount, price)
 
   try {
     await dvf.submitOrder({
