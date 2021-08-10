@@ -17,11 +17,16 @@ Once the above setup is complete, you can use the following instructions:
 
 `node setup` - registers and deposits your ETH to the exchange
 
-`node index` - starts the bot!
+`node cusdt` - starts the bot!
 
 ### Example:
 
 This example uses an API provided by compound to give the price.
 
+In production we are using this for the following markets:
+- CUSDT:USDT
+- DVF:xDVF
+
+Both of these are run by the account: 0xbBD430c6FD183331B35Ee4Fd3BFcA7cB6437C6e4
 
 Please fork and use!

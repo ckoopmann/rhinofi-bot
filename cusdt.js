@@ -21,7 +21,7 @@ async function marketMake () {
 }
 
 async function periodicReplace() {
-    midPrice = await getCoingeckoPrice()
+    midPrice = await getOraclePrice()
     console.log(midPrice)
     const haveOpenOrders = await checkIfOpenOrders()
     if (midPrice !== lastMidPrice || !haveOpenOrders) {
@@ -109,7 +109,7 @@ console.log(amount, price)
 }
 
 let config, quote, base
-async function getCoingeckoPrice () {
+async function getOraclePrice () {
 
   if (!config) {
     [quote, base] = splitSymbol(PAIR)
@@ -123,6 +123,6 @@ async function getCoingeckoPrice () {
        json: true
   })
 
-  console.log(apiResponse.cToken[0].exchange_rate.value)
+  console.log('OraclePrice: ', apiResponse.cToken[0].exchange_rate.value)
   return parseFloat(apiResponse.cToken[0].exchange_rate.value).toPrecision(4)
 }
