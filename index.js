@@ -1,15 +1,13 @@
 const DVF = require('./dvf')
 const _ = require('lodash')
 const { splitSymbol, prepareAmount, preparePrice } = require('dvf-utils')
-const { AlchemyProvider } = require('@ethersproject/providers')
 const { PAIR, PRIVATE_KEY, ALCHEMY_URL } = require('./config')
-const { ChainId, Token, WETH, Fetcher, Route, Trade, TokenAmount, TradeType } = require('@uniswap/sdk')
+const request = require('request-promise')
+
 
 let dvf
 
-const provider = new AlchemyProvider(null, ALCHEMY_URL.split('/v2/')[1])
-
-let lastBidRoute, lastAskRoute, lastMidPrice
+let lastMidPrice
 
 let tokenQuote
 let tokenBase
@@ -18,27 +16,23 @@ onStartUp()
 
 let pair, routeBuy, routeSell, buySide, sellSide, midPrice
 async function marketMake () {
-  setInterval(async () => {
-    pair = await Fetcher.fetchPairData(tokenQuote, tokenBase, provider)
-    routeBuy = new Route([pair], tokenBase)
-    routeSell = new Route([pair], tokenQuote)
-    midPrice = routeBuy.midPrice.invert().toSignificant(4)
+  periodicReplace()
+  setInterval(periodicReplace, 600000)
+}
+
+async function periodicReplace() {
+    midPrice = await getCoingeckoPrice()
     console.log(midPrice)
     const haveOpenOrders = await checkIfOpenOrders()
     if (midPrice !== lastMidPrice || !haveOpenOrders) {
       lastMidPrice = midPrice
-      lastBidRoute = routeSell
-      lastAskRoute = routeBuy
       replaceOrders()
     }
-  }, 180000)
 }
 
 async function onStartUp () {
   dvf = await DVF()
-  await cancelOpenOrders()
   await syncBalances()
-  await defineUniswapTokens()
   console.log('Starting balances: ', balanceA, balanceB)
   marketMake()
 }
@@ -74,28 +68,25 @@ async function syncBalances () {
 }
 
 async function replaceOrders () {
-  cancelOpenOrders()
+  await cancelOpenOrders()
   syncBalances()
-  placeOrder(-balanceA / 20)
-  placeOrder(balanceB / (lastMidPrice * 20))
+  const balanceToSell = Math.min(0.9 * balanceA, 500000 / lastMidPrice)
+  placeOrder(-1 * balanceToSell)
+  const balanceToBuy = Math.min(0.9 * balanceB / lastMidPrice, 500000 / lastMidPrice)
+  placeOrder(balanceToBuy)
 }
 
 async function placeOrder (amount) {
-  amount = prepareAmount(amount, 1)
+  amount = 100 * Math.trunc(prepareAmount(amount, 0) / 100)
   if (amount === '0') return
 
   const [quote, base] = splitSymbol(PAIR)
   let price
   if (amount > 0) {
-    const buyAmountWei = dvf.token.toBaseUnitAmount(quote, 1)
-    buySide = new Trade(lastBidRoute, new TokenAmount(tokenQuote, buyAmountWei), TradeType.EXACT_INPUT)
-    price = preparePrice(buySide.executionPrice.toSignificant(4))
+    price = preparePrice(lastMidPrice * 0.9995)
     console.log('Place buy at:', price)
   } else {
-    const sellAmountWei = dvf.token.toBaseUnitAmount(base, 1)
-    sellSide = new Trade(lastAskRoute, new TokenAmount(tokenBase, sellAmountWei), TradeType.EXACT_INPUT)
-    price = sellSide.executionPrice.invert().toSignificant(4)
-    price = preparePrice(price * 1)
+    price = preparePrice(lastMidPrice * 1.00)
     console.log('Place sell at:', price)
   }
   if (!price) return
@@ -115,17 +106,21 @@ console.log(amount, price)
   }
 }
 
-async function defineUniswapTokens () {
-  const [quote, base] = splitSymbol(PAIR)
-  const config = await dvf.getConfig()
-  tokenQuote = quote === 'ETH' ? WETH[ChainId.MAINNET] : new Token(
-    ChainId.MAINNET,
-    config.tokenRegistry[quote].tokenAddress,
-    config.tokenRegistry[quote].decimals
-  )
-  tokenBase = base === 'ETH' ? WETH[ChainId.MAINNET] : new Token(
-    ChainId.MAINNET,
-    config.tokenRegistry[base].tokenAddress,
-    config.tokenRegistry[base].decimals
-  )
+let config, quote, base
+async function getCoingeckoPrice () {
+
+  if (!config) {
+    [quote, base] = splitSymbol(PAIR)
+    config = await dvf.getConfig()
+  }
+
+  const tokenContractAddress = config.tokenRegistry[quote].tokenAddress
+
+  const apiResponse = await request.get({
+       url: `https://api.compound.finance/api/v2/ctoken?addresses[]=${tokenContractAddress}`,
+       json: true
+  })
+
+  console.log(apiResponse.cToken[0].exchange_rate.value)
+  return parseFloat(apiResponse.cToken[0].exchange_rate.value).toPrecision(4)
 }
