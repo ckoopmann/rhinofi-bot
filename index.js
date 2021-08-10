@@ -69,11 +69,13 @@ async function syncBalances () {
 
 async function replaceOrders () {
   await cancelOpenOrders()
-  syncBalances()
-  const balanceToSell = Math.min(0.9 * balanceA, 500000 / lastMidPrice)
-  placeOrder(-1 * balanceToSell)
-  const balanceToBuy = Math.min(0.9 * balanceB / lastMidPrice, 500000 / lastMidPrice)
-  placeOrder(balanceToBuy)
+  setTimeout(async() => {
+    await syncBalances()
+    const balanceToSell = Math.min(0.9 * balanceA, 500000 / lastMidPrice)
+    placeOrder(-1 * balanceToSell)
+    const balanceToBuy = Math.min(0.9 * balanceB / lastMidPrice, 500000 / lastMidPrice)
+    placeOrder(balanceToBuy)
+  }, 2000)
 }
 
 async function placeOrder (amount) {
