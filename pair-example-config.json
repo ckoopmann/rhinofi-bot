@@ -1,0 +1,8 @@
+{
+    "relativeSpread": 0.01,
+    "balanceShareToUse": 0.9,
+    "pair": "CDETI:ETH",
+    "updateFrequencyMs": 120000,
+    "defaultRetries": 5,
+    "retryIntervalMs": 1000
+}
